@@ -1,14 +1,14 @@
 {
-  "name": "keychain-keeper",
+  "name": "leads-pms",
   "private": true,
   "sideEffects": false,
   "type": "module",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "start": "node --env-file-if-exists=.env .output/server/index.mjs",
     "lint": "eslint .",
-    "format": "prettier --write .",
-    "start": "node --env-file=.env .output/server/index.mjs"
+    "format": "prettier --write ."
   },
   "overrides": {
     "rolldown": "1.2.1"

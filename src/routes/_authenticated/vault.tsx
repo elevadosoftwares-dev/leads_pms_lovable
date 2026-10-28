@@ -92,7 +92,9 @@ function VaultPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">View Login Credentials</h1>
+          <h1 className="text-2xl font-semibold">
+            View <span className="text-primary">Login Credentials</span>
+          </h1>
           <p className="text-sm text-muted-foreground">
             {session?.isAdmin
               ? "You can see and manage every entry."
@@ -111,7 +113,7 @@ function VaultPage() {
         )}
       </div>
 
-      <div className="vault-surface grid gap-4 rounded-2xl border border-border p-4 sm:grid-cols-[1fr_200px_200px]">
+      <div className="vault-surface grid gap-4 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-violet-soft/40 p-4 sm:grid-cols-[1fr_200px_200px]">
         <div className="space-y-2">
           <Label htmlFor="search">Search For Login Credentials</Label>
           <div className="relative">
@@ -166,7 +168,7 @@ function VaultPage() {
         </div>
       ) : (
         <div className="vault-surface overflow-hidden rounded-2xl border border-border">
-          <div className="hidden items-center gap-4 border-b border-border bg-muted/60 px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:flex">
+          <div className="hidden items-center gap-4 border-b border-primary/15 bg-primary/8 px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-primary sm:flex">
             <span className="w-32 shrink-0">Entity</span>
             <span className="w-28 shrink-0">Client Name</span>
             <span className="min-w-0 flex-1">Purpose / URL</span>
@@ -239,8 +241,19 @@ function CredentialCard({
       {open && (
         <div className="border-t border-border px-5 pb-5 pt-4">
           <div className="mb-3 flex flex-wrap gap-1">
-            {(row.departments ?? []).map((d) => (
-              <Badge key={d} variant="secondary">
+            {(row.departments ?? []).map((d, i) => (
+              <Badge
+                key={d}
+                variant="secondary"
+                className={
+                  [
+                    "bg-violet-soft text-violet",
+                    "bg-success-soft text-success",
+                    "bg-warning-soft text-warning",
+                    "bg-coral-soft text-coral",
+                  ][i % 4]
+                }
+              >
                 {d}
               </Badge>
             ))}
@@ -297,8 +310,8 @@ function CopyRow({
   extra?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-secondary/60 px-3 py-2">
-      <span className="w-20 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
+    <div className="flex items-center gap-2 rounded-lg border border-primary/10 bg-primary/5 px-3 py-2">
+      <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-wide text-primary">
         {label}
       </span>
       <span className="min-w-0 flex-1 truncate font-mono text-sm">{display ?? value}</span>

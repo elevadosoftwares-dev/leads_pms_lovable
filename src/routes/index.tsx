@@ -167,8 +167,8 @@ function LoginPage() {
 function Feature({ icon: Icon, title, sub }: { icon: typeof Lock; title: string; sub: string }) {
   return (
     <div className="flex flex-col items-center gap-1.5 text-center">
-      <span className="flex size-10 items-center justify-center rounded-full border border-white/30 bg-white/10">
-        <Icon className="size-4" />
+      <span className="flex size-10 items-center justify-center rounded-full border border-gold/50 bg-gold/15">
+        <Icon className="size-4 text-gold" />
       </span>
       <span className="text-xs font-semibold">{title}</span>
       <span className="text-[11px] text-white/70">{sub}</span>

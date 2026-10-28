@@ -42,7 +42,9 @@ function MastersPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Masters</h1>
+        <h1 className="text-2xl font-semibold">
+          <span className="text-warning">Masters</span>
+        </h1>
         <p className="text-sm text-muted-foreground">
           Add the entities and departments used by credentials.
         </p>
@@ -106,9 +108,14 @@ function MasterList({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const accent =
+    table === "entities"
+      ? "border-primary/20 bg-primary/5"
+      : "border-warning/25 bg-warning-soft/50";
+  const accentText = table === "entities" ? "text-primary" : "text-warning";
   return (
-    <section className="vault-surface space-y-4 rounded-2xl border border-border p-5">
-      <h2 className="text-lg font-semibold">{title}</h2>
+    <section className={`vault-surface space-y-4 rounded-2xl border p-5 ${accent}`}>
+      <h2 className={`text-lg font-semibold ${accentText}`}>{title}</h2>
       <form
         className="flex gap-2"
         onSubmit={(e) => {

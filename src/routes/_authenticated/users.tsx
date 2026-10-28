@@ -102,14 +102,16 @@ function UsersPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Users</h1>
+        <h1 className="text-2xl font-semibold">
+          <span className="text-violet">User</span> Management
+        </h1>
         <p className="text-sm text-muted-foreground">
           Create accounts and decide which department's credentials each person can see.
         </p>
       </div>
 
       <form
-        className="vault-surface grid gap-4 rounded-2xl border border-border p-5 sm:grid-cols-2 lg:grid-cols-4"
+        className="vault-surface grid gap-4 rounded-2xl border border-violet/20 bg-gradient-to-r from-violet-soft/50 via-card to-card p-5 sm:grid-cols-2 lg:grid-cols-4"
         onSubmit={(e) => {
           e.preventDefault();
           create.mutate();
@@ -185,7 +187,14 @@ function UsersPage() {
                 <TableCell className="font-medium">{u.email}</TableCell>
                 <TableCell>{u.department}</TableCell>
                 <TableCell>
-                  <Badge variant={u.isAdmin ? "default" : "secondary"}>
+                  <Badge
+                    variant="secondary"
+                    className={
+                      u.isAdmin
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-success-soft text-success"
+                    }
+                  >
                     {u.isAdmin ? "Admin" : "User"}
                   </Badge>
                 </TableCell>

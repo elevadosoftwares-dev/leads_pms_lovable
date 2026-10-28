@@ -112,7 +112,7 @@ function DashboardPage() {
       </div>
 
       <section className="vault-surface overflow-hidden rounded-lg border border-border">
-        <div className="flex items-center justify-between border-b border-border bg-muted/60 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-primary/15 bg-gradient-to-r from-primary/8 via-violet-soft/40 to-success-soft/40 px-5 py-4">
           <h2 className="text-lg font-semibold">
             {search.trim() ? "Search Results" : "Recent Login Credentials"}
           </h2>
@@ -170,8 +170,19 @@ function DashboardPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {(row.departments ?? []).map((department) => (
-                          <Badge key={department} variant="secondary">
+                        {(row.departments ?? []).map((department, i) => (
+                          <Badge
+                            key={department}
+                            variant="secondary"
+                            className={
+                              [
+                                "bg-violet-soft text-violet",
+                                "bg-success-soft text-success",
+                                "bg-warning-soft text-warning",
+                                "bg-coral-soft text-coral",
+                              ][i % 4]
+                            }
+                          >
                             {department}
                           </Badge>
                         ))}
@@ -179,7 +190,7 @@ function DashboardPage() {
                     </TableCell>
                   </TableRow>
                   {isOpen && (
-                    <TableRow className="bg-secondary/35 hover:bg-secondary/35">
+                    <TableRow className="bg-primary/5 hover:bg-primary/5">
                       <TableCell colSpan={5} className="p-5">
                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                           <DashboardDetail label="Purpose" value={row.purpose} />
@@ -192,8 +203,8 @@ function DashboardPage() {
                           <DashboardDetail label="Support Email" value={row.contact_email} />
                           <DashboardDetail label="Support Tel" value={row.contact_tel} />
                         </div>
-                        <div className="mt-4 flex max-w-2xl items-center gap-2 rounded-lg border border-border bg-muted/60 px-3 py-2">
-                          <span className="w-20 shrink-0 text-xs font-semibold uppercase text-muted-foreground">
+                        <div className="mt-4 flex max-w-2xl items-center gap-2 rounded-lg border border-coral/25 bg-coral-soft/60 px-3 py-2">
+                          <span className="w-20 shrink-0 text-xs font-semibold uppercase text-coral">
                             Password
                           </span>
                           <span className="min-w-0 flex-1 truncate font-mono text-sm">
@@ -237,7 +248,7 @@ function DashboardPage() {
 function DashboardDetail({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
-      <div className="text-xs font-semibold uppercase text-muted-foreground">{label}</div>
+      <div className="text-xs font-semibold uppercase text-primary/70">{label}</div>
       <div className="mt-1 break-words text-sm">{value || "—"}</div>
     </div>
   );

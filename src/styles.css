@@ -121,7 +121,24 @@
   }
 
   body {
-    background-color: var(--color-background);
+    background:
+      radial-gradient(
+        1200px 600px at 100% -10%,
+        color-mix(in oklab, var(--violet) 8%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        1000px 500px at -10% 100%,
+        color-mix(in oklab, var(--success) 7%, transparent),
+        transparent 60%
+      ),
+      linear-gradient(
+        160deg,
+        oklch(0.972 0.01 262),
+        oklch(0.966 0.012 200) 55%,
+        oklch(0.97 0.014 90)
+      );
+    background-attachment: fixed;
     color: var(--color-foreground);
   }
 
