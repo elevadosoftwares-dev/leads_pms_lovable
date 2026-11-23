@@ -88,7 +88,7 @@ function AssistantChat({
     id: `leads-assistant-${userId}`,
     messages: initialMessages,
     transport,
-    onError: (chatError) => toast.error(chatError.message),
+    onError: (chatError) => toast.error(chatErrorText(chatError)),
   });
 
   const clear = useMutation({
@@ -168,7 +168,7 @@ function AssistantChat({
             ))
           )}
           {status === "submitted" && <Shimmer>Thinking…</Shimmer>}
-          {error && <p className="text-sm text-destructive">{error.message}</p>}
+          {error && <p className="text-sm text-destructive">{chatErrorText(error)}</p>}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -191,4 +191,15 @@ function AssistantChat({
       </PromptInput>
     </div>
   );
+}
+
+/** The chat endpoint answers errors as {"error": "..."}; show just the message. */
+function chatErrorText(error: Error): string {
+  try {
+    const parsed = JSON.parse(error.message) as { error?: unknown };
+    if (typeof parsed.error === "string") return parsed.error;
+  } catch {
+    // Not JSON - use the message as is.
+  }
+  return error.message || "The AI assistant could not answer right now.";
 }
