@@ -97,17 +97,18 @@ export function createChatStream(request: Request, instructions: string, message
 
   return {
     result,
-    toResponse: (
+    toResponse: async (
       originalMessages: UIMessage[],
       onEnd?: (event: { messages: UIMessage[]; isAborted: boolean }) => Promise<void> | void,
-    ) =>
-      withLovableAiGatewayRunIdHeader(
-        result.toUIMessageStreamResponse({
-          originalMessages,
-          sendReasoning: true,
-          ...(onEnd ? { onEnd } : {}),
-        }),
-        runIdFetch,
-      ),
+    ) => {
+      const response = result.toUIMessageStreamResponse({
+        originalMessages,
+        sendReasoning: true,
+        ...(onEnd ? { onEnd } : {}),
+      });
+      // The run-ID header only exists on the Lovable gateway. Waiting for it with any other
+      // provider would hold the response forever, so other providers stream directly.
+      return config.lovable ? withLovableAiGatewayRunIdHeader(response, runIdFetch) : response;
+    },
   };
 }
