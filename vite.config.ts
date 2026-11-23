@@ -2,12 +2,16 @@ import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import viteReact from "@vitejs/plugin-react";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 import { nitro } from "nitro/vite";
 
 // Make .env available as process.env to server code during `npm run dev`.
 // (In production, `npm start` passes --env-file=.env to Node instead.)
+// Vite re-runs this file in the same process when .env changes; values are assigned (not
+// merely filled in when missing) so an edited .env, e.g. a new AI_API_KEY, takes effect.
 try {
-  process.loadEnvFile(".env");
+  Object.assign(process.env, parseEnv(readFileSync(".env", "utf8")));
 } catch {
   // No .env file - rely on the real environment.
 }
