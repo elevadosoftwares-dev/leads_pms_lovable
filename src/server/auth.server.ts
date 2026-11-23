@@ -41,7 +41,9 @@ export async function createSession(userId: string): Promise<void> {
   setCookie(COOKIE_NAME, token, cookieOptions(expires));
 }
 
-/** Returns the signed-in user, or null. Extends the session when it is past its halfway point. */
+/**
+ * Returns the signed-in, active user, or null. A disabled account gets null even with a valid
+ * cookie, so its access stops at once. Extends the session when it is past its halfway point. */
 export async function getSessionUser(): Promise<SessionUser | null> {
   const token = getCookie(COOKIE_NAME);
   if (!token) return null;
@@ -57,7 +59,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   }>(
     `SELECT u.id, u.email, u.department, u.is_admin, s.expires_at
        FROM dbo.sessions s JOIN dbo.users u ON u.id = s.user_id
-      WHERE s.token_hash = @token_hash AND s.expires_at > SYSUTCDATETIME()`,
+      WHERE s.token_hash = @token_hash AND s.expires_at > SYSUTCDATETIME() AND u.is_active = 1`,
   );
   const row = recordset[0];
   if (!row) return null;
@@ -89,4 +91,19 @@ export async function destroySession(): Promise<void> {
       .query(`DELETE FROM dbo.sessions WHERE token_hash = @token_hash`);
   }
   deleteCookie(COOKIE_NAME, { path: "/" });
+}
+
+/**
+ * Ends every session of a user, e.g. after a password change or reset. With keepCurrent, the
+ * browser making this request stays signed in.
+ */
+export async function destroyUserSessions(userId: string, keepCurrent = false): Promise<void> {
+  const token = keepCurrent ? getCookie(COOKIE_NAME) : undefined;
+  const req = await request();
+  await req
+    .input("user_id", sql.UniqueIdentifier, userId)
+    .input("keep", sql.Char(64), token ? sha256Hex(token) : null)
+    .query(
+      `DELETE FROM dbo.sessions WHERE user_id = @user_id AND (@keep IS NULL OR token_hash <> @keep)`,
+    );
 }

@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ context }) => {
+    // getSession returns null for signed-out and for disabled accounts alike.
     const user = await context.queryClient.fetchQuery({
       queryKey: sessionQueryKey,
       queryFn: () => getSession(),

@@ -23,6 +23,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  CredentialEntryAssistant,
+  type CredentialFormPatch,
+} from "@/components/ai/CredentialEntryAssistant";
 
 export type CredentialRow = {
   id: string;
@@ -38,6 +42,8 @@ export type CredentialRow = {
   contact_name: string | null;
   contact_email: string | null;
   contact_tel: string | null;
+  token_type: string | null;
+  token_holder: string | null;
 };
 
 const empty = {
@@ -53,7 +59,11 @@ const empty = {
   contact_name: "",
   contact_email: "",
   contact_tel: "",
+  token_type: "",
+  token_holder: "",
 };
+
+export type CredentialFormValues = typeof empty;
 
 export function CredentialDialog({
   open,
@@ -86,6 +96,8 @@ export function CredentialDialog({
             contact_name: editing.contact_name ?? "",
             contact_email: editing.contact_email ?? "",
             contact_tel: editing.contact_tel ?? "",
+            token_type: editing.token_type ?? "",
+            token_holder: editing.token_holder ?? "",
           }
         : empty,
     );
@@ -107,6 +119,8 @@ export function CredentialDialog({
         contact_name: form.contact_name || null,
         contact_email: form.contact_email || null,
         contact_tel: form.contact_tel || null,
+        token_type: form.token_type || null,
+        token_holder: form.token_holder || null,
       };
       await saveCredential({ data: { ...payload, id: editing?.id } });
     },
@@ -120,6 +134,10 @@ export function CredentialDialog({
 
   function set<K extends keyof typeof empty>(key: K, value: (typeof empty)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function applySuggestion(patch: CredentialFormPatch) {
+    setForm((current) => ({ ...current, ...patch }));
   }
 
   return (
@@ -140,6 +158,7 @@ export function CredentialDialog({
             save.mutate();
           }}
         >
+          <CredentialEntryAssistant onApply={applySuggestion} />
           <Field label="Entity *" className="sm:col-span-2">
             <Select value={form.entity_id} onValueChange={(v) => set("entity_id", v)}>
               <SelectTrigger>
@@ -197,6 +216,24 @@ export function CredentialDialog({
           </Field>
           <Field label="Purpose Of System">
             <Input value={form.purpose} onChange={(e) => set("purpose", e.target.value)} />
+          </Field>
+          <Field label="Digital/Physical Token Or Keys">
+            <Select value={form.token_type} onValueChange={(v) => set("token_type", v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Digital Token">Digital Token</SelectItem>
+                <SelectItem value="Physical Token">Physical Token</SelectItem>
+                <SelectItem value="Keys">Keys</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Holding By (Personal Name)">
+            <Input
+              value={form.token_holder}
+              onChange={(e) => set("token_holder", e.target.value)}
+            />
           </Field>
 
           <div className="sm:col-span-2">

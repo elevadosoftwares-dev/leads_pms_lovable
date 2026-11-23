@@ -1,8 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
+
 import { requireAdmin, requireAuth } from "@/lib/auth-middleware";
 import type { CredentialRow } from "@/components/CredentialDialog";
 
 export type CredentialInput = Omit<CredentialRow, "id"> & { id?: string | undefined };
+
+export const TOKEN_TYPES = ["Digital Token", "Physical Token", "Keys"] as const;
 
 const optionalFields = [
   "registered_email",
@@ -11,58 +14,22 @@ const optionalFields = [
   "contact_name",
   "contact_email",
   "contact_tel",
+  "token_type",
+  "token_holder",
 ] as const;
 
 /** Admins see every credential; everyone else only those shared with their department. */
 export const listCredentials = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    const { request, sql } = await import("@/server/db.server");
-    const { decryptSecret } = await import("@/server/crypto.server");
-    const { user } = context;
-
-    const scope = user.isAdmin
-      ? ""
-      : `WHERE EXISTS (SELECT 1 FROM dbo.credential_departments d
-                        WHERE d.credential_id = c.id AND d.department = @department)`;
-    const req = await request();
-    const { recordsets } = await req.input("department", sql.NVarChar(40), user.department).query(
-      `SELECT c.id, c.entity_id, c.site_url, c.login_user_id, c.password_enc, c.registered_email,
-                c.registered_mobile, c.client_name, c.purpose, c.contact_name, c.contact_email,
-                c.contact_tel
-           FROM dbo.credentials c ${scope}
-          ORDER BY c.client_name;
-         SELECT d.credential_id, d.department
-           FROM dbo.credential_departments d
-           JOIN dbo.credentials c ON c.id = d.credential_id ${scope}
-          ORDER BY d.department;`,
-    );
-    const [rows, departmentRows] = recordsets as unknown as [
-      (Omit<CredentialRow, "password" | "departments"> & { password_enc: string })[],
-      { credential_id: string; department: string }[],
-    ];
-
-    const departmentsById = new Map<string, string[]>();
-    for (const d of departmentRows) {
-      const id = d.credential_id.toLowerCase();
-      departmentsById.set(id, [...(departmentsById.get(id) ?? []), d.department]);
-    }
-
-    return rows.map(({ password_enc, ...row }): CredentialRow => {
-      const id = row.id.toLowerCase();
-      return {
-        ...row,
-        id,
-        entity_id: row.entity_id?.toLowerCase() ?? null,
-        password: decryptSecret(password_enc),
-        departments: departmentsById.get(id) ?? [],
-      };
-    });
+  .handler(async ({ context }): Promise<CredentialRow[]> => {
+    const { loadCredentials } = await import("@/server/credentials.server");
+    const rows = await loadCredentials(context.user, true);
+    return rows.map(({ created_at: _c, updated_at: _u, ...row }) => row);
   });
 
 export const saveCredential = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((input: CredentialInput) => {
+  .inputValidator((input: CredentialInput) => {
     if (!input?.entity_id) throw new Error("Select an entity.");
     if (!input.login_user_id?.trim() || !input.password?.trim())
       throw new Error("User ID and Password are required.");
@@ -73,6 +40,8 @@ export const saveCredential = createServerFn({ method: "POST" })
       ...new Set((input.departments ?? []).map((d) => d.trim()).filter(Boolean)),
     ];
     if (departments.length === 0) throw new Error("Select at least one department.");
+    if (input.token_type && !(TOKEN_TYPES as readonly string[]).includes(input.token_type))
+      throw new Error("Select a valid token or keys type.");
 
     const clean = { ...input, site_url: input.site_url ?? "", departments };
     for (const key of optionalFields) clean[key] = input[key]?.trim() ? input[key] : null;
@@ -97,7 +66,9 @@ export const saveCredential = createServerFn({ method: "POST" })
         .input("purpose", sql.NVarChar(1000), data.purpose)
         .input("contact_name", sql.NVarChar(200), data.contact_name)
         .input("contact_email", sql.NVarChar(320), data.contact_email)
-        .input("contact_tel", sql.NVarChar(50), data.contact_tel);
+        .input("contact_tel", sql.NVarChar(50), data.contact_tel)
+        .input("token_type", sql.NVarChar(40), data.token_type)
+        .input("token_holder", sql.NVarChar(200), data.token_holder);
 
       let id = data.id;
       if (id) {
@@ -107,7 +78,8 @@ export const saveCredential = createServerFn({ method: "POST" })
                   password_enc = @password_enc, registered_email = @registered_email,
                   registered_mobile = @registered_mobile, client_name = @client_name,
                   purpose = @purpose, contact_name = @contact_name, contact_email = @contact_email,
-                  contact_tel = @contact_tel, updated_at = SYSUTCDATETIME()
+                  contact_tel = @contact_tel, token_type = @token_type,
+                  token_holder = @token_holder, updated_at = SYSUTCDATETIME()
             WHERE id = @id;
            DELETE FROM dbo.credential_departments WHERE credential_id = @id;`,
         );
@@ -118,11 +90,12 @@ export const saveCredential = createServerFn({ method: "POST" })
           .query<{ id: string }>(
             `INSERT INTO dbo.credentials
                (entity_id, site_url, login_user_id, password_enc, registered_email, registered_mobile,
-                client_name, purpose, contact_name, contact_email, contact_tel, created_by)
+                client_name, purpose, contact_name, contact_email, contact_tel, token_type,
+                token_holder, created_by)
              OUTPUT INSERTED.id
              VALUES (@entity_id, @site_url, @login_user_id, @password_enc, @registered_email,
                      @registered_mobile, @client_name, @purpose, @contact_name, @contact_email,
-                     @contact_tel, @created_by)`,
+                     @contact_tel, @token_type, @token_holder, @created_by)`,
           );
         id = recordset[0]?.id;
       }
@@ -146,7 +119,7 @@ export const saveCredential = createServerFn({ method: "POST" })
 
 export const deleteCredential = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((input: { id: string }) => {
+  .inputValidator((input: { id: string }) => {
     if (!input?.id) throw new Error("Missing credential.");
     return input;
   })

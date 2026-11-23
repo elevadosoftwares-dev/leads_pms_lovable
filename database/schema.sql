@@ -79,3 +79,90 @@ CREATE TABLE dbo.credential_departments (
 );
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_credential_departments_department')
   CREATE INDEX ix_credential_departments_department ON dbo.credential_departments(department);
+
+-- ---------------------------------------------------------------------------------------------
+-- Upgrades for the v2 features. Each step only adds what is missing, so an existing database
+-- keeps all of its rows and simply gains the new columns and tables on the next start.
+-- ---------------------------------------------------------------------------------------------
+
+-- Disabled accounts: 0 blocks sign-in and ends existing sessions immediately.
+IF COL_LENGTH(N'dbo.users', N'is_active') IS NULL
+  ALTER TABLE dbo.users ADD is_active BIT NOT NULL CONSTRAINT df_users_is_active DEFAULT 1;
+
+-- Physical/digital token or keys held for a credential, and who holds them.
+IF COL_LENGTH(N'dbo.credentials', N'token_type') IS NULL
+  ALTER TABLE dbo.credentials ADD token_type NVARCHAR(40) NULL;
+IF COL_LENGTH(N'dbo.credentials', N'token_holder') IS NULL
+  ALTER TABLE dbo.credentials ADD token_holder NVARCHAR(200) NULL;
+
+-- One-time password reset links. token_hash is the SHA-256 of the token sent in the link.
+IF OBJECT_ID(N'dbo.password_resets', N'U') IS NULL
+CREATE TABLE dbo.password_resets (
+  token_hash CHAR(64)         NOT NULL CONSTRAINT pk_password_resets PRIMARY KEY,
+  user_id    UNIQUEIDENTIFIER NOT NULL
+    CONSTRAINT fk_password_resets_user REFERENCES dbo.users(id) ON DELETE CASCADE,
+  expires_at DATETIME2(3)     NOT NULL,
+  created_at DATETIME2(3)     NOT NULL CONSTRAINT df_password_resets_created_at DEFAULT SYSUTCDATETIME()
+);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_password_resets_user_id')
+  CREATE INDEX ix_password_resets_user_id ON dbo.password_resets(user_id);
+
+-- The single saved AI assistant conversation per user (UI messages as JSON).
+IF OBJECT_ID(N'dbo.ai_chat_conversations', N'U') IS NULL
+CREATE TABLE dbo.ai_chat_conversations (
+  user_id    UNIQUEIDENTIFIER NOT NULL CONSTRAINT pk_ai_chat_conversations PRIMARY KEY
+    CONSTRAINT fk_ai_chat_conversations_user REFERENCES dbo.users(id) ON DELETE CASCADE,
+  messages   NVARCHAR(MAX)    NOT NULL CONSTRAINT df_ai_chat_conversations_messages DEFAULT N'[]',
+  updated_at DATETIME2(3)     NOT NULL CONSTRAINT df_ai_chat_conversations_updated_at DEFAULT SYSUTCDATETIME()
+);
+GO
+
+-- Atomically changes a user's department, role and active state. An application lock serialises
+-- concurrent calls so two administrators cannot demote/disable each other and leave none active.
+CREATE OR ALTER PROCEDURE dbo.manage_vault_user
+  @actor_id   UNIQUEIDENTIFIER,
+  @user_id    UNIQUEIDENTIFIER,
+  @department NVARCHAR(40),
+  @is_admin   BIT,
+  @is_active  BIT
+AS
+BEGIN
+  SET NOCOUNT ON;
+  SET XACT_ABORT ON;
+  BEGIN TRY
+  BEGIN TRANSACTION;
+  EXEC sp_getapplock @Resource = N'manage_vault_user', @LockMode = N'Exclusive', @LockOwner = N'Transaction';
+
+  IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE id = @actor_id AND is_admin = 1 AND is_active = 1)
+    THROW 50001, N'Only administrators can do this.', 1;
+  IF @is_admin IS NULL OR @is_active IS NULL
+    THROW 50002, N'Missing account settings.', 1;
+  IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE id = @user_id)
+    THROW 50003, N'User not found.', 1;
+  IF NOT EXISTS (SELECT 1 FROM dbo.departments WHERE name = @department)
+    THROW 50004, N'Select a valid department.', 1;
+  IF @user_id = @actor_id AND (@is_admin = 0 OR @is_active = 0)
+    THROW 50005, N'You cannot remove your own administrator access.', 1;
+  IF (@is_admin = 0 OR @is_active = 0)
+     AND EXISTS (SELECT 1 FROM dbo.users WHERE id = @user_id AND is_admin = 1 AND is_active = 1)
+     AND (SELECT COUNT(*) FROM dbo.users WHERE is_admin = 1 AND is_active = 1) <= 1
+    THROW 50006, N'Keep at least one active administrator.', 1;
+
+  UPDATE dbo.users
+     SET department = @department, is_admin = @is_admin, is_active = @is_active
+   WHERE id = @user_id;
+  -- A disabled account loses its sessions and any pending reset links straight away.
+  IF @is_active = 0
+  BEGIN
+    DELETE FROM dbo.sessions WHERE user_id = @user_id;
+    DELETE FROM dbo.password_resets WHERE user_id = @user_id;
+  END
+
+  COMMIT TRANSACTION;
+  END TRY
+  BEGIN CATCH
+    -- Never leave a half-open transaction on the pooled connection.
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+  END CATCH
+END

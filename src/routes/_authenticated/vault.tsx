@@ -2,11 +2,24 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronDown, Copy, Eye, EyeOff, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  Copy,
+  Download,
+  Eye,
+  EyeOff,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 import { deleteCredential, listCredentials } from "@/lib/credentials.functions";
+import { toSiteHref } from "@/lib/utils";
 import { useDepartments, useEntities, useSession, type Department } from "@/lib/session";
 import { CredentialDialog, type CredentialRow } from "@/components/CredentialDialog";
+import { CredentialHealthPanel } from "@/components/ai/CredentialHealthPanel";
+import { SmartSearch } from "@/components/ai/SmartSearch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,10 +64,11 @@ function VaultPage() {
   const entityName = (id: string | null) => entities?.find((e) => e.id === id)?.name ?? "—";
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CredentialRow | null>(null);
+  const [aiMatchIds, setAiMatchIds] = useState<string[] | null>(null);
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["credentials"],
-    queryFn: () => listCredentials(),
+    queryFn: (): Promise<CredentialRow[]> => listCredentials(),
   });
 
   const remove = useMutation({
@@ -73,6 +87,7 @@ function VaultPage() {
   const results = useMemo(() => {
     const q = term.trim().toLowerCase();
     return (rows ?? []).filter((row) => {
+      if (aiMatchIds && !aiMatchIds.includes(row.id)) return false;
       if (entity !== "all" && row.entity_id !== entity) return false;
       const matchesDept = dept === "all" || row.departments?.includes(dept as Department);
       const haystack = [
@@ -86,7 +101,7 @@ function VaultPage() {
         .toLowerCase();
       return matchesDept && (q === "" || haystack.includes(q));
     });
-  }, [rows, term, dept, entity, entities]);
+  }, [rows, term, dept, entity, entities, aiMatchIds]);
 
   return (
     <div className="space-y-6">
@@ -102,14 +117,19 @@ function VaultPage() {
           </p>
         </div>
         {session?.isAdmin && (
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
-            <Plus className="size-4" /> New Credential
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => backupCredentials(rows ?? [], entityName)}>
+              <Download className="size-4" /> Backup All
+            </Button>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="size-4" /> New Credential
+            </Button>
+          </div>
         )}
       </div>
 
@@ -160,6 +180,9 @@ function VaultPage() {
         </div>
       </div>
 
+      <SmartSearch onMatches={setAiMatchIds} />
+      <CredentialHealthPanel />
+
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading credentials…</p>
       ) : results.length === 0 ? (
@@ -197,6 +220,59 @@ function VaultPage() {
       <CredentialDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} />
     </div>
   );
+}
+
+function backupCredentials(rows: CredentialRow[], entityName: (id: string | null) => string) {
+  if (rows.length === 0) {
+    toast.error("There are no credentials to back up.");
+    return;
+  }
+  const headers = [
+    "Entity",
+    "Client Name",
+    "URL Of Site",
+    "User ID",
+    "Password",
+    "Registered Email",
+    "Registered Mobile",
+    "Purpose Of System",
+    "Departments",
+    "Token Or Keys",
+    "Holding By",
+    "Contact Name",
+    "Contact Email",
+    "Contact Tel",
+  ];
+  const escape = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '""')}"`;
+  const lines = rows.map((row) =>
+    [
+      entityName(row.entity_id),
+      row.client_name,
+      row.site_url,
+      row.login_user_id,
+      row.password,
+      row.registered_email,
+      row.registered_mobile,
+      row.purpose,
+      (row.departments ?? []).join("; "),
+      row.token_type,
+      row.token_holder,
+      row.contact_name,
+      row.contact_email,
+      row.contact_tel,
+    ]
+      .map(escape)
+      .join(","),
+  );
+  const csv = [headers.map(escape).join(","), ...lines].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `leads-credentials-backup-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast.success(`Backed up ${rows.length} credential${rows.length === 1 ? "" : "s"}.`);
 }
 
 function CredentialCard({
@@ -259,7 +335,7 @@ function CredentialCard({
             ))}
           </div>
           <div className="space-y-2">
-            <CopyRow label="Site" value={row.site_url} />
+            <CopyRow label="Site" value={row.site_url} href={toSiteHref(row.site_url)} />
             <CopyRow label="User ID" value={row.login_user_id} />
             <CopyRow
               label="Password"
@@ -280,6 +356,8 @@ function CredentialCard({
             <Detail label="Support Contact" value={row.contact_name} />
             <Detail label="Support Email" value={row.contact_email} />
             <Detail label="Support Tel" value={row.contact_tel} />
+            <Detail label="Token Or Keys" value={row.token_type} />
+            <Detail label="Holding By" value={row.token_holder} />
           </dl>
 
           {isAdmin && (
@@ -303,18 +381,31 @@ function CopyRow({
   value,
   display,
   extra,
+  href,
 }: {
   label: string;
   value: string;
   display?: string;
   extra?: React.ReactNode;
+  href?: string | null;
 }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-primary/10 bg-primary/5 px-3 py-2">
       <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-wide text-primary">
         {label}
       </span>
-      <span className="min-w-0 flex-1 truncate font-mono text-sm">{display ?? value}</span>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="min-w-0 flex-1 truncate font-mono text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {display ?? value}
+        </a>
+      ) : (
+        <span className="min-w-0 flex-1 truncate font-mono text-sm">{display ?? value}</span>
+      )}
       {extra}
       <Button
         variant="ghost"

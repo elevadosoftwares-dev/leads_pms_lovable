@@ -1,7 +1,16 @@
 import type { ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, LogOut, Users, KeyRound, Building2, ChevronDown } from "lucide-react";
+import {
+  LayoutDashboard,
+  LogOut,
+  Users,
+  KeyRound,
+  Building2,
+  UserRound,
+  ChevronDown,
+  Bot,
+} from "lucide-react";
 
 import { signOut as signOutFn } from "@/lib/auth.functions";
 import { useSession } from "@/lib/session";
@@ -11,6 +20,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "View Login Credentials", url: "/vault", icon: KeyRound },
+  { title: "AI Assistant", url: "/assistant", icon: Bot },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -53,6 +63,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               {item.title}
             </Link>
           ))}
+          <Link
+            to="/account"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive("/account") ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-navy-muted hover:bg-sidebar-accent hover:text-navy-foreground"}`}
+          >
+            <UserRound className="size-4" />
+            My Account
+          </Link>
           {session?.isAdmin && (
             <>
               <Link

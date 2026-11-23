@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -153,9 +153,14 @@ function LoginPage() {
               {needsFirstAdmin ? "Create Administrator" : "Login"}
             </Button>
             {!needsFirstAdmin && (
-              <p className="text-center text-xs text-muted-foreground">
-                Accounts are created by an administrator.
-              </p>
+              <div className="space-y-3 text-center">
+                <Button asChild variant="link">
+                  <Link to="/forgot-password">Forgot Password?</Link>
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  Accounts are created by an administrator.
+                </p>
+              </div>
             )}
           </form>
         </div>

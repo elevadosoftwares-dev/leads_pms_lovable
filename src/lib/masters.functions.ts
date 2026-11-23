@@ -32,7 +32,7 @@ function validateTable(table: unknown): MasterTable {
 
 export const addMaster = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((input: { table: MasterTable; name: string }) => {
+  .inputValidator((input: { table: MasterTable; name: string }) => {
     const table = validateTable(input?.table);
     const name = input?.name?.trim() ?? "";
     const max = table === "entities" ? 100 : 40;
@@ -60,7 +60,7 @@ export const addMaster = createServerFn({ method: "POST" })
 
 export const deleteMaster = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((input: { table: MasterTable; key: string }) => {
+  .inputValidator((input: { table: MasterTable; key: string }) => {
     const table = validateTable(input?.table);
     if (!input?.key) throw new Error("Missing item.");
     return { table, key: input.key };

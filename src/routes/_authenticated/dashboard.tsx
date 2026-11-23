@@ -6,6 +6,9 @@ import { toast } from "sonner";
 
 import { listCredentials } from "@/lib/credentials.functions";
 import { useEntities } from "@/lib/session";
+import { toSiteHref } from "@/lib/utils";
+import type { CredentialRow } from "@/components/CredentialDialog";
+import { SmartSearch } from "@/components/ai/SmartSearch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,17 +45,21 @@ function DashboardPage() {
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [revealedId, setRevealedId] = useState<string | null>(null);
+  const [aiMatchIds, setAiMatchIds] = useState<string[] | null>(null);
   const { data: entities } = useEntities();
 
   const { data: credentials } = useQuery({
     queryKey: ["credentials"],
-    queryFn: () => listCredentials(),
+    queryFn: (): Promise<CredentialRow[]> => listCredentials(),
   });
 
   const entityName = (id: string | null) => entities?.find((e) => e.id === id)?.name ?? "—";
   const visibleCredentials = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const matching = (credentials ?? []).filter((row) => {
+    const source = aiMatchIds
+      ? (credentials ?? []).filter((row) => aiMatchIds.includes(row.id))
+      : (credentials ?? []);
+    const matching = source.filter((row) => {
       if (!query) return true;
       return [
         entityName(row.entity_id),
@@ -65,8 +72,8 @@ function DashboardPage() {
         .toLowerCase()
         .includes(query);
     });
-    return query ? matching : matching.slice(0, 5);
-  }, [credentials, entities, search]);
+    return query || aiMatchIds ? matching : matching.slice(0, 5);
+  }, [credentials, entities, search, aiMatchIds]);
 
   return (
     <div className="space-y-7">
@@ -93,6 +100,7 @@ function DashboardPage() {
               onChange={(event) => {
                 setSearch(event.target.value);
                 setOpenId(null);
+                setAiMatchIds(null);
               }}
               className="h-11 flex-1"
               aria-label="Search Login Credentials"
@@ -107,6 +115,9 @@ function DashboardPage() {
                 Clear
               </Button>
             )}
+          </div>
+          <div className="mt-4 max-w-3xl">
+            <SmartSearch onMatches={setAiMatchIds} />
           </div>
         </div>
       </div>
@@ -144,6 +155,7 @@ function DashboardPage() {
             {visibleCredentials.map((row) => {
               const isOpen = openId === row.id;
               const isRevealed = revealedId === row.id;
+              const siteHref = toSiteHref(row.site_url);
               return (
                 <Fragment key={row.id}>
                   <TableRow className={isOpen ? "bg-primary/5" : undefined}>
@@ -152,7 +164,18 @@ function DashboardPage() {
                     </TableCell>
                     <TableCell className="font-medium">{row.client_name}</TableCell>
                     <TableCell className="max-w-56 truncate text-muted-foreground">
-                      {row.site_url || "—"}
+                      {siteHref ? (
+                        <a
+                          href={siteHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-primary underline-offset-4 hover:underline"
+                        >
+                          {row.site_url}
+                        </a>
+                      ) : (
+                        row.site_url || "—"
+                      )}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -202,6 +225,8 @@ function DashboardPage() {
                           <DashboardDetail label="Support Contact" value={row.contact_name} />
                           <DashboardDetail label="Support Email" value={row.contact_email} />
                           <DashboardDetail label="Support Tel" value={row.contact_tel} />
+                          <DashboardDetail label="Token Or Keys" value={row.token_type} />
+                          <DashboardDetail label="Holding By" value={row.token_holder} />
                         </div>
                         <div className="mt-4 flex max-w-2xl items-center gap-2 rounded-lg border border-coral/25 bg-coral-soft/60 px-3 py-2">
                           <span className="w-20 shrink-0 text-xs font-semibold uppercase text-coral">
