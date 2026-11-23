@@ -72,7 +72,7 @@ src/components/*                (server functions)             (DB pool, crypto,
 | `PORT` (optional)       | Port to listen on (default 3000)                                                                                                     |
 | `APP_URL` (optional)    | Public site address used in reset links, e.g. `https://credentials.example.com`                                                      |
 | `SMTP_*` (optional)     | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` — emails reset links                              |
-| `AI_*` (optional)       | `AI_API_KEY`, `AI_BASE_URL` (default OpenAI), `AI_MODEL` — enables the AI features. `LOVABLE_API_KEY` also works                     |
+| `AI_*` (optional)       | `AI_API_KEY`, `AI_BASE_URL` (default OpenAI), `AI_MODEL` (default `gpt-4.1-mini`) — enables the AI features. `LOVABLE_API_KEY` also works                     |
 
 Without SMTP, "Forgot Password" tells the user to ask an administrator, and the administrator's
 reset button in User Management shows a one-time link (valid 60 minutes) to pass on. Without an

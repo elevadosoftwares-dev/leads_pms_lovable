@@ -23,7 +23,7 @@ function getConfig() {
     return {
       baseURL: process.env["AI_BASE_URL"]?.trim() || "https://api.openai.com/v1",
       apiKey,
-      model: process.env["AI_MODEL"]?.trim() || "gpt-5-mini",
+      model: process.env["AI_MODEL"]?.trim() || "gpt-4.1-mini",
       lovable: false,
     };
   }
@@ -55,15 +55,25 @@ function createProvider(request: Request) {
   return { config, provider, runIdFetch };
 }
 
-const providerOptions = {
-  openai: {
-    store: false,
-    forceReasoning: true,
-    reasoningEffort: "low",
-    reasoningSummary: "auto",
-    include: ["reasoning.encrypted_content"],
-  },
-} as const;
+/** Reasoning models (gpt-5*, o1/o3/o4*, gateway "openai/gpt-6…") accept reasoning settings. */
+function isReasoningModel(model: string) {
+  return /^(openai\/)?(gpt-[5-9]|o\d)/i.test(model);
+}
+
+/** Non-reasoning models such as gpt-4.1-mini reject reasoning options, so send them only when supported. */
+function providerOptionsFor(model: string) {
+  return {
+    openai: isReasoningModel(model)
+      ? {
+          store: false,
+          forceReasoning: true,
+          reasoningEffort: "low",
+          reasoningSummary: "auto",
+          include: ["reasoning.encrypted_content"],
+        }
+      : { store: false },
+  } as const;
+}
 
 export async function generateStructured<T>(
   request: Request,
@@ -77,7 +87,7 @@ export async function generateStructured<T>(
     instructions,
     messages,
     output: Output.object({ schema }),
-    providerOptions,
+    providerOptions: providerOptionsFor(config.model),
     abortSignal: request.signal,
     maxRetries: 0,
   });
@@ -90,9 +100,10 @@ export function createChatStream(request: Request, instructions: string, message
     model: provider.responses(config.model),
     instructions,
     messages,
-    providerOptions,
+    providerOptions: providerOptionsFor(config.model),
     abortSignal: request.signal,
     maxRetries: 0,
+    onError: ({ error }) => console.error("[ai] Chat request failed:", error),
   });
 
   return {
@@ -104,6 +115,10 @@ export function createChatStream(request: Request, instructions: string, message
       const response = result.toUIMessageStreamResponse({
         originalMessages,
         sendReasoning: true,
+        // The SDK hides errors as "An error occurred."; show the provider's message instead
+        // (e.g. invalid key, quota, unknown model). It never contains the API key.
+        onError: (error) =>
+          `The AI assistant could not answer: ${error instanceof Error ? error.message : String(error)}`,
         ...(onEnd ? { onEnd } : {}),
       });
       // The run-ID header only exists on the Lovable gateway. Waiting for it with any other

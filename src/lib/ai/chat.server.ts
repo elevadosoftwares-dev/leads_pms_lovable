@@ -38,7 +38,12 @@ async function saveConversation(userId: string, messages: UIMessage[]) {
   const req = await dbRequest();
   await req
     .input("user_id", sql.UniqueIdentifier, userId)
-    .input("messages", sql.NVarChar(sql.MAX), JSON.stringify(messages))
+    // A failed reply leaves an empty assistant message; never store it, or it breaks later turns.
+    .input(
+      "messages",
+      sql.NVarChar(sql.MAX),
+      JSON.stringify(messages.filter((message) => message.parts.length > 0)),
+    )
     .query(
       `UPDATE dbo.ai_chat_conversations
           SET messages = @messages, updated_at = SYSUTCDATETIME()
@@ -70,7 +75,15 @@ export async function handleChat(request: Request) {
       `Non-secret credential directory: ${JSON.stringify(directory)}`,
     ].join(" ");
 
-    const modelMessages = await convertToModelMessages(body.messages);
+    // Send only text history: earlier "Thinking" parts carry provider-specific encrypted data
+    // that another model (or a changed AI_MODEL) rejects, and they add nothing to the context.
+    const history = body.messages
+      .map((message) => ({
+        ...message,
+        parts: message.parts.filter((part) => part.type === "text"),
+      }))
+      .filter((message) => message.parts.length > 0);
+    const modelMessages = await convertToModelMessages(history);
     const stream = createChatStream(request, instructions, modelMessages);
     return stream.toResponse(body.messages, async ({ messages, isAborted }) => {
       if (isAborted) return;
